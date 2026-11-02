@@ -88,14 +88,46 @@
       </select>
       <span>Total <strong class="num"><%= brl(total) %></strong></span>
     </form>
-    <% if (!expenses.length) { %><p class="muted">Nenhum gasto registrado.</p><% } %>
+    <% if (!expenses.length) { %><p class="muted">Nenhum gasto registrado.</p><% } else {
+         const totals = new Map();
+         expenses.forEach(e => e.shares.forEach(s => totals.set(String(s.personId), (totals.get(String(s.personId)) || 0) + s.cents)));
+    %>
+      <small class="summary-title">Quanto coube a cada pessoa</small>
+      <ul class="summary">
+        <% [...totals].sort((a, b) => b[1] - a[1]).forEach(([id, cents]) => { %>
+          <li><span><%= names.get(id) %></span><strong class="num"><%= brl(cents) %></strong></li>
+        <% }) %>
+      </ul>
+    <% } %>
     <% expenses.forEach(e => { %>
-      <div class="item">
-        <div class="row between"><strong><%= e.description %></strong><span class="num"><%= brl(e.cents) %></span></div>
-        <small><%= e.date.toLocaleDateString('pt-BR') %>, pago por <%= names.get(String(e.paidBy)) %><%= e.outingId ? ', ' + outNames.get(String(e.outingId)) : '' %></small>
-        <small>Divisão: <%= e.shares.map(s => names.get(String(s.personId)) + ' ' + brl(s.cents)).join('; ') %></small>
+      <article class="expense">
+        <div class="expense-head">
+          <div>
+            <strong class="expense-title"><%= e.description %></strong>
+            <small><%= e.date.toLocaleDateString('pt-BR') %>, pago por <%= names.get(String(e.paidBy)) %></small>
+          </div>
+          <span class="expense-amount num"><%= brl(e.cents) %></span>
+        </div>
+        <% if (e.outingId) {
+             const oname = outNames.get(String(e.outingId)) || 'Saída';
+             const hue = [...oname].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 0);
+        %>
+          <a class="flag" style="--hue:<%= hue %>" href="/g/<%= group._id %>?outing=<%= e.outingId %>" title="Filtrar por esta saída">
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 2v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M4 3h8l-2 2.5L12 8H4z" fill="currentColor"/></svg>
+            <%= oname %>
+          </a>
+        <% } %>
+        <ul class="split">
+          <% e.shares.forEach(s => { const pct = e.cents ? Math.round(s.cents / e.cents * 100) : 0; %>
+            <li>
+              <span class="split-name"><%= names.get(String(s.personId)) %><% if (String(s.personId) === String(e.paidBy)) { %><em>pagou</em><% } %></span>
+              <span class="split-bar"><i style="width:<%= pct %>%"></i></span>
+              <span class="num"><%= brl(s.cents) %></span>
+            </li>
+          <% }) %>
+        </ul>
         <form method="post" action="/g/<%= group._id %>/expenses/<%= e._id %>/delete"><button class="link">Remover gasto</button></form>
-      </div>
+      </article>
     <% }) %>
   </section>
 
