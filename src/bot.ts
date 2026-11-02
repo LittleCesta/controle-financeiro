@@ -115,7 +115,8 @@ bot.command(
   }),
 );
 
-const KV = /\b(pagou|quem|saida|saída):("[^"]*"|\S+)/gi;
+const KV =
+  /\b(pagou|quem|saida|saída):\s*("[^"]*"|“[^”]*”|[^\s,]+(?:\s*,\s*[^\s,]+)*)/gi;
 
 bot.command(
   "gasto",
@@ -123,7 +124,7 @@ bot.command(
     // 1) separa os campos chave:valor; o que sobra é descrição + valor
     const opts: Record<string, string> = {};
     const rest = arg(ctx).replace(KV, (_m, k: string, v: string) => {
-      opts[norm(k)] = v.replace(/^"|"$/g, "");
+      opts[norm(k)] = v.replace(/^["“]|["”]$/g, "").replace(/\s*,\s*/g, ",");
       return " ";
     });
     const words = rest.split(/\s+/).filter(Boolean);
@@ -134,6 +135,12 @@ bot.command(
       );
     const cents = parseMoney(words[i]);
     const description = words.filter((_, j) => j !== i).join(" ");
+
+    if (/\b(pagou|quem|saida|saída)\s*:/i.test(description)) {
+      throw new Error(
+        'Não entendi um dos campos. Use campo:valor, ex.: quem:Cesar,Keven saida:"Sábado Varanda"',
+      );
+    }
 
     // 2) resolve nomes dentro do grupo ativo
     const { g, st } = await activeGroup();
@@ -167,6 +174,7 @@ bot.command(
       paidBy: payer._id,
       outingId: outing?._id,
       parts,
+      date: ctx.message ? new Date(ctx.message.date * 1000) : undefined,
     });
     const nameOf = (id: ObjectId) => ppl.find((p) => p._id.equals(id))!.name;
     return `Registrado: ${description || "Gasto"}, ${brl(cents)}, pago por ${payer.name}${outing ? ` (${outing.name})` : ""}.\nDivisão: ${shares.map((s) => `${nameOf(s.personId)} ${brl(s.cents)}`).join("; ")}`;
