@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= group.name %></title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+  <a href="/">Todos os grupos</a>
+  <h1><%= group.name %></h1>
+
+  <section>
+    <h2>Pessoas e saídas</h2>
+    <p>
+      <% people.forEach(p => { %><span class="tag"><%= p.name %></span><% }) %>
+      <% if (!people.length) { %><span class="muted">Adicione as pessoas do grupo para começar.</span><% } %>
+    </p>
+    <form method="post" action="/g/<%= group._id %>/people" class="row">
+      <input name="name" placeholder="Nome da pessoa" required><button>Adicionar pessoa</button>
+    </form>
+    <form method="post" action="/g/<%= group._id %>/outings" class="row">
+      <input name="name" placeholder="Ex.: Sábado no bar" required><button>Criar saída</button>
+    </form>
+  </section>
+
+  <% if (people.length) { %>
+  <section>
+    <h2>Novo gasto</h2>
+    <form method="post" action="/g/<%= group._id %>/expenses" class="grid">
+      <input name="description" placeholder="Descrição, ex.: Uber" required>
+      <input name="amount" placeholder="Valor, ex.: 60,00" inputmode="decimal" required>
+      <label>Quem pagou
+        <select name="paidBy"><% people.forEach(p => { %><option value="<%= p._id %>"><%= p.name %></option><% }) %></select>
+      </label>
+      <label>Saída
+        <select name="outingId">
+          <option value="">Nenhuma</option>
+          <% outings.forEach(o => { %><option value="<%= o._id %>" <%= String(o._id) === outing ? 'selected' : '' %>><%= o.name %></option><% }) %>
+        </select>
+      </label>
+      <label>Data <input type="date" name="date" value="<%= today %>" required></label>
+      <fieldset>
+        <legend>Quem participou?</legend>
+        <small>Deixe o valor em branco para dividir igualmente. Quem tiver valor preenchido paga exatamente aquilo, e o restante é dividido entre os outros.</small>
+        <% people.forEach(p => { %>
+          <div class="row">
+            <label><input type="checkbox" name="participants" value="<%= p._id %>" checked> <%= p.name %></label>
+            <input name="custom_<%= p._id %>" placeholder="igual" size="8" inputmode="decimal">
+          </div>
+        <% }) %>
+      </fieldset>
+      <button>Salvar gasto</button>
+    </form>
+  </section>
+  <% } %>
+
+  <section>
+    <h2>Saldos</h2>
+    <% balances.forEach(b => { %>
+      <div class="row between">
+        <span><%= b.name %></span>
+        <strong class="num <%= b.cents < 0 ? 'neg' : 'pos' %>"><%= brl(b.cents) %></strong>
+      </div>
+    <% }) %>
+    <small>Positivo: tem a receber. Negativo: deve ao grupo.</small>
+
+    <h3>Para zerar as contas</h3>
+    <% if (!transfers.length) { %><p class="muted">Todo mundo está quite.</p><% } %>
+    <% transfers.forEach(t => { %>
+      <form method="post" action="/g/<%= group._id %>/payments" class="row">
+        <span><%= t.fromName %> paga a <%= t.toName %></span>
+        <input type="hidden" name="from" value="<%= t.from %>">
+        <input type="hidden" name="to" value="<%= t.to %>">
+        <input name="amount" value="<%= (t.cents / 100).toFixed(2) %>" size="8" inputmode="decimal">
+        <button>Registrar pagamento</button>
+      </form>
+    <% }) %>
+  </section>
+
+  <section>
+    <h2>Gastos<%= outing ? ': ' + outNames.get(outing) : '' %></h2>
+    <form method="get" class="row">
+      <select name="outing" onchange="this.form.submit()">
+        <option value="">Todas as saídas</option>
+        <% outings.forEach(o => { %><option value="<%= o._id %>" <%= String(o._id) === outing ? 'selected' : '' %>><%= o.name %></option><% }) %>
+      </select>
+      <span>Total <strong class="num"><%= brl(total) %></strong></span>
+    </form>
+    <% if (!expenses.length) { %><p class="muted">Nenhum gasto registrado.</p><% } %>
+    <% expenses.forEach(e => { %>
+      <div class="item">
+        <div class="row between"><strong><%= e.description %></strong><span class="num"><%= brl(e.cents) %></span></div>
+        <small><%= e.date.toLocaleDateString('pt-BR') %>, pago por <%= names.get(String(e.paidBy)) %><%= e.outingId ? ', ' + outNames.get(String(e.outingId)) : '' %></small>
+        <small>Divisão: <%= e.shares.map(s => names.get(String(s.personId)) + ' ' + brl(s.cents)).join('; ') %></small>
+        <form method="post" action="/g/<%= group._id %>/expenses/<%= e._id %>/delete"><button class="link">Remover gasto</button></form>
+      </div>
+    <% }) %>
+  </section>
+
+  <section>
+    <h2>Pagamentos registrados</h2>
+    <% if (!payments.length) { %><p class="muted">Nenhum pagamento ainda.</p><% } %>
+    <% payments.forEach(p => { %>
+      <div class="row between">
+        <span><%= p.date.toLocaleDateString('pt-BR') %>: <%= names.get(String(p.from)) %> pagou a <%= names.get(String(p.to)) %></span>
+        <span class="num"><%= brl(p.cents) %></span>
+      </div>
+    <% }) %>
+  </section>
+</main>
+</body>
+</html>
