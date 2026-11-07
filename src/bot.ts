@@ -1,4 +1,4 @@
-import { Bot, Context } from "grammy";
+import { Bot, Context, InputFile } from "grammy";
 import { ObjectId } from "mongodb";
 import {
   botState,
@@ -10,6 +10,7 @@ import {
   people,
 } from "./db";
 import { createExpense } from "./expenses";
+import { loadReportData, renderReportBuffer, reportFileName } from "./report";
 import { balances, brl, parseMoney } from "./finance";
 
 const token = process.env.TELEGRAM_TOKEN;
@@ -62,27 +63,38 @@ async function activeGroup() {
   return { g, st };
 }
 
+const HTML = { parse_mode: "HTML" as const };
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 // Cada handler devolve o texto da resposta; erros viram mensagem em vez de derrubar o bot
 const reply =
   (fn: (ctx: Context) => Promise<string>) => async (ctx: Context) => {
     try {
-      await ctx.reply(await fn(ctx));
+      await ctx.reply(await fn(ctx), HTML);
     } catch (e) {
-      await ctx.reply(`Erro: ${(e as Error).message}`);
+      await ctx.reply(
+        `⚠️ <b>Não consegui</b>\n${esc((e as Error).message)}`,
+        HTML,
+      );
     }
   };
 const arg = (ctx: Context) => String(ctx.match ?? "");
 
-const HELP = `Registrar gasto:
-/gasto Uber 60 pagou:Cesar quem:Cesar,Ana,Bia saida:Sábado
+const HELP = `<b>Registrar um gasto</b>
+<code>/gasto Uber 60 pagou:Cesar quem:Cesar,Ana,Bia saida:Sábado data:02/11</code>
 
-pagou: quem pagou (padrão: o nome definido em /eu)
-quem: participantes (padrão: todos). Valor fixo com Nome:valor, ex.: Davi:20
-saida: opcional; use aspas se tiver espaço, ex.: saida:"Sábado no bar"
+<b>Campos</b> (opcionais, além da descrição e do valor)
+• <b>pagou</b>: quem pagou (padrão: o nome definido em /eu)
+• <b>quem</b>: participantes (padrão: todos). Valor fixo: <code>Davi:20</code>
+• <b>saida</b>: use aspas se tiver espaço: <code>saida:"Sábado no bar"</code>
+• <b>data</b>: <code>02/11</code>, <code>02/11/2026</code> ou <code>ontem</code>. Sem data, vale o dia do envio
 
-Outros: /grupo Nome, /eu Nome, /saldo`;
+<b>Outros comandos</b>
+/grupo Nome, /eu Nome, /saldo
+/relatorio (envia o PDF de saldos e pagamentos)`;
 
-bot.command(["start", "ajuda"], (ctx) => ctx.reply(HELP));
+bot.command(["start", "ajuda"], (ctx) => ctx.reply(HELP, HTML));
 
 bot.command(
   "grupo",
@@ -93,7 +105,7 @@ bot.command(
       { $set: { groupId: g._id } },
       { upsert: true },
     );
-    return `Grupo ativo: ${g.name}`;
+    return `📂 Grupo ativo: <b>${esc(g.name)}</b>`;
   }),
 );
 
@@ -111,12 +123,42 @@ bot.command(
       { $set: { meName: p.name } },
       { upsert: true },
     );
-    return `Sem "pagou:", o gasto será de ${p.name}.`;
+    return `👤 Sem <code>pagou:</code>, o gasto será de <b>${esc(p.name)}</b>.`;
   }),
 );
 
+// "02/11", "02/11/2026", "hoje" ou "ontem". Sem data, vale o momento em que a mensagem foi enviada
+function parseDate(input: string | undefined, sent: Date): Date {
+  if (!input) return sent;
+  const t = norm(input);
+  const day = new Date(sent);
+  day.setHours(12, 0, 0, 0);
+  if (t === "hoje") return day;
+  if (t === "ontem") {
+    day.setDate(day.getDate() - 1);
+    return day;
+  }
+  const m = t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/);
+  if (!m)
+    throw new Error(
+      `Data inválida: "${input}". Use data:02/11, data:02/11/2026 ou data:ontem`,
+    );
+  const year = m[3]
+    ? m[3].length === 2
+      ? 2000 + Number(m[3])
+      : Number(m[3])
+    : sent.getFullYear();
+  const out = new Date(year, Number(m[2]) - 1, Number(m[1]), 12);
+  if (out.getMonth() !== Number(m[2]) - 1)
+    throw new Error(`Essa data não existe: "${input}"`); // ex.: 31/02 viraria março
+  // dia/mês sem ano que cairia no futuro: considera o ano anterior
+  if (!m[3] && out.getTime() > sent.getTime() + 864e5)
+    out.setFullYear(year - 1);
+  return out;
+}
+
 const KV =
-  /\b(pagou|quem|saida|saída):\s*("[^"]*"|“[^”]*”|[^\s,]+(?:\s*,\s*[^\s,]+)*)/gi;
+  /\b(pagou|quem|saida|saída|data):\s*("[^"]*"|“[^”]*”|[^\s,]+(?:\s*,\s*[^\s,]+)*)/gi;
 
 bot.command(
   "gasto",
@@ -136,7 +178,7 @@ bot.command(
     const cents = parseMoney(words[i]);
     const description = words.filter((_, j) => j !== i).join(" ");
 
-    if (/\b(pagou|quem|saida|saída)\s*:/i.test(description)) {
+    if (/\b(pagou|quem|saida|saída|data)\s*:/i.test(description)) {
       throw new Error(
         'Não entendi um dos campos. Use campo:valor, ex.: quem:Cesar,Keven saida:"Sábado Varanda"',
       );
@@ -166,6 +208,9 @@ bot.command(
         }));
     const outing = opts.saida ? pick(outs, opts.saida, "Saída") : undefined;
 
+    const sent = ctx.message ? new Date(ctx.message.date * 1000) : new Date();
+    const date = parseDate(opts.data, sent);
+
     // 3) grava pelo mesmo serviço que o site usa
     const shares = await createExpense({
       groupId: g._id,
@@ -174,10 +219,18 @@ bot.command(
       paidBy: payer._id,
       outingId: outing?._id,
       parts,
-      date: ctx.message ? new Date(ctx.message.date * 1000) : undefined,
+      date,
     });
     const nameOf = (id: ObjectId) => ppl.find((p) => p._id.equals(id))!.name;
-    return `Registrado: ${description || "Gasto"}, ${brl(cents)}, pago por ${payer.name}${outing ? ` (${outing.name})` : ""}.\nDivisão: ${shares.map((s) => `${nameOf(s.personId)} ${brl(s.cents)}`).join("; ")}`;
+    return [
+      `✅ <b>${esc(description || "Gasto")}</b> registrado`,
+      `💰 ${brl(cents)}, pago por <b>${esc(payer.name)}</b>`,
+      ...(outing ? [`🚩 ${esc(outing.name)}`] : []),
+      `📅 ${date.toLocaleDateString("pt-BR")}`,
+      "",
+      "<b>Divisão</b>",
+      ...shares.map((s) => `• ${esc(nameOf(s.personId))}: ${brl(s.cents)}`),
+    ].join("\n");
   }),
 );
 
@@ -190,16 +243,42 @@ bot.command(
       expenses
         .find({ groupId: g._id, deletedAt: { $exists: false } })
         .toArray(),
-      payments.find({ groupId: g._id }).toArray(),
+      payments
+        .find({ groupId: g._id, deletedAt: { $exists: false } })
+        .toArray(),
     ]);
     const b = balances(exp, pay);
-    return (
-      ppl
-        .map((p) => `${p.name}: ${brl(b.get(String(p._id)) ?? 0)}`)
-        .join("\n") || "Sem pessoas no grupo."
-    );
+    if (!ppl.length) return "Sem pessoas no grupo.";
+    return [
+      "<b>Saldos</b>",
+      ...ppl.map((p) => {
+        const c = b.get(String(p._id)) ?? 0;
+        return `${c < 0 ? "🔴" : c > 0 ? "🟢" : "⚪"} ${esc(p.name)}: <b>${brl(c)}</b>`;
+      }),
+    ].join("\n");
   }),
 );
+
+bot.command("relatorio", async (ctx) => {
+  try {
+    const { g } = await activeGroup();
+    const data = await loadReportData(g._id);
+    if (!data) throw new Error("Grupo não encontrado");
+    const pdf = await renderReportBuffer(data);
+    await ctx.replyWithDocument(
+      new InputFile(pdf, reportFileName(data.groupName)),
+      {
+        caption: `📄 Relatório de <b>${esc(data.groupName)}</b>`,
+        parse_mode: "HTML",
+      },
+    );
+  } catch (e) {
+    await ctx.reply(
+      `⚠️ <b>Não consegui</b>\n${esc((e as Error).message)}`,
+      HTML,
+    );
+  }
+});
 
 bot.catch((err) => console.error("Erro no bot:", err.message));
 
