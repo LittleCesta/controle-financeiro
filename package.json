@@ -5,7 +5,8 @@
     "dev": "tsx watch --env-file=.env src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "bot": "tsx watch --env-file=.env src/bot.ts"
+    "bot": "tsx watch --env-file=.env src/bot.ts",
+    "test": "node --import tsx --test src/test/finance.test.ts"
   },
   "dependencies": {
     "ejs": "^3.1.10",
