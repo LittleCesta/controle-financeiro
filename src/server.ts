@@ -1,7 +1,9 @@
 import express, { NextFunction, Request, Response } from "express";
 import { MongoClient, ObjectId } from "mongodb";
 import path from "path";
-import { balances, brl, buildShares, parseMoney, settle } from "./finance";
+import { balances, brl, parseMoney, settle } from "./finance";
+import { createExpense, updateExpense, type NewExpense } from "./expenses";
+import { loadReportData, renderReport, reportFileName } from "./report";
 import { client, groups, people, outings, expenses, payments } from "./db";
 
 const app = express();
@@ -15,6 +17,29 @@ const h =
   (fn: (req: Request, res: Response) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) =>
     fn(req, res).catch(next);
+
+// Lê o formulário de gasto (usado ao criar e ao editar)
+function expenseFromForm(
+  gid: ObjectId,
+  b: Record<string, string | string[]>,
+): NewExpense {
+  const ids = ([] as string[]).concat(b.participants ?? []);
+  return {
+    groupId: gid,
+    description: String(b.description),
+    cents: parseMoney(String(b.amount)),
+    paidBy: new ObjectId(String(b.paidBy)),
+    outingId: b.outingId ? new ObjectId(String(b.outingId)) : undefined,
+    date: new Date(`${b.date}T12:00:00`), // meio-dia evita virar o dia por fuso horário
+    parts: ids.map((id) => {
+      const raw = String(b[`custom_${id}`] ?? "").trim();
+      return {
+        personId: new ObjectId(id),
+        cents: raw ? parseMoney(raw) : undefined,
+      };
+    }),
+  };
+}
 
 app.get(
   "/",
@@ -43,14 +68,20 @@ app.get(
     const group = await groups.findOne({ _id: gid });
     if (!group) return res.status(404).send("Grupo não encontrado");
 
+    const order = req.query.ordem === "asc" ? "asc" : "desc";
+    const dir = order === "asc" ? 1 : -1;
+
     const [ppl, outs, all, pays] = await Promise.all([
       people.find({ groupId: gid }).sort({ name: 1 }).toArray(),
       outings.find({ groupId: gid }).sort({ _id: -1 }).toArray(),
       expenses
         .find({ groupId: gid, deletedAt: { $exists: false } })
+        .sort({ date: dir, _id: dir }) // _id desempata gastos do mesmo dia
+        .toArray(),
+      payments
+        .find({ groupId: gid, deletedAt: { $exists: false } })
         .sort({ date: -1 })
         .toArray(),
-      payments.find({ groupId: gid }).sort({ date: -1 }).toArray(),
     ]);
 
     const names = new Map(ppl.map((p) => [String(p._id), p.name]));
@@ -67,6 +98,7 @@ app.get(
       people: ppl,
       outings: outs,
       outing,
+      order,
       names,
       outNames,
       brl,
@@ -114,28 +146,39 @@ app.post(
   h(async (req, res) => {
     const gid = new ObjectId(req.params.id);
     const b = req.body as Record<string, string | string[]>;
-    const cents = parseMoney(String(b.amount));
-    if (cents <= 0) throw new Error("Informe um valor maior que zero");
-
-    const ids = ([] as string[]).concat(b.participants ?? []);
-    const parts = ids.map((id) => {
-      const raw = String(b[`custom_${id}`] ?? "").trim();
-      return {
-        personId: new ObjectId(id),
-        cents: raw ? parseMoney(raw) : undefined,
-      };
-    });
-
-    await expenses.insertOne({
-      groupId: gid,
-      description: String(b.description).trim() || "Gasto",
-      cents,
-      paidBy: new ObjectId(String(b.paidBy)),
-      ...(b.outingId ? { outingId: new ObjectId(String(b.outingId)) } : {}),
-      date: new Date(`${b.date}T12:00:00`), // meio-dia evita virar o dia por fuso horário
-      shares: buildShares(cents, parts),
-    });
+    await createExpense(expenseFromForm(gid, b));
     res.redirect(`/g/${gid}${b.outingId ? `?outing=${b.outingId}` : ""}`);
+  }),
+);
+
+app.get(
+  "/g/:id/expenses/:eid/edit",
+  h(async (req, res) => {
+    const gid = new ObjectId(req.params.id);
+    const [group, expense, ppl, outs] = await Promise.all([
+      groups.findOne({ _id: gid }),
+      expenses.findOne({
+        _id: new ObjectId(req.params.eid),
+        groupId: gid,
+        deletedAt: { $exists: false },
+      }),
+      people.find({ groupId: gid }).sort({ name: 1 }).toArray(),
+      outings.find({ groupId: gid }).sort({ _id: -1 }).toArray(),
+    ]);
+    if (!group || !expense) return res.status(404).send("Gasto não encontrado");
+    res.render("edit-expense", { group, expense, people: ppl, outings: outs });
+  }),
+);
+
+app.post(
+  "/g/:id/expenses/:eid/edit",
+  h(async (req, res) => {
+    const gid = new ObjectId(req.params.id);
+    await updateExpense(
+      new ObjectId(req.params.eid),
+      expenseFromForm(gid, req.body),
+    );
+    res.redirect(`/g/${gid}`);
   }),
 );
 
@@ -168,6 +211,36 @@ app.post(
       date: new Date(),
     });
     res.redirect(`/g/${req.params.id}`);
+  }),
+);
+
+// Soft delete também nos pagamentos: o saldo volta ao que era, e o registro fica no banco
+app.post(
+  "/g/:id/payments/:pid/delete",
+  h(async (req, res) => {
+    await payments.updateOne(
+      {
+        _id: new ObjectId(req.params.pid),
+        groupId: new ObjectId(req.params.id),
+      },
+      { $set: { deletedAt: new Date() } },
+    );
+    res.redirect(`/g/${req.params.id}`);
+  }),
+);
+
+// Relatório em PDF: saldos, transferências para quitar e todos os pagamentos registrados
+app.get(
+  "/g/:id/relatorio.pdf",
+  h(async (req, res) => {
+    const data = await loadReportData(new ObjectId(req.params.id));
+    if (!data) return res.status(404).send("Grupo não encontrado");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${reportFileName(data.groupName)}"`,
+    );
+    renderReport(res, data);
   }),
 );
 
