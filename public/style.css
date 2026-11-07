@@ -385,3 +385,68 @@ fieldset .row input[name^="custom_"] {
     grid-row: 2;
   }
 }
+
+/* ========== 8. Modal de confirmação e ações ========== */
+dialog {
+  width: min(92vw, 420px);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+}
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+dialog p {
+  margin: 0 0 20px;
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+button.ghost {
+  background: none;
+  color: var(--fg);
+  border-color: var(--line);
+}
+button.danger {
+  background: var(--neg);
+  border-color: var(--neg);
+  color: var(--bg);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.actions a,
+.actions .link {
+  font-size: 0.9rem;
+}
+.grid > .actions {
+  grid-column: 1 / -1;
+}
+.row-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* link com cara de botão (download do relatório) */
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 600;
+  text-decoration: none;
+}
+a.btn:hover {
+  border-color: var(--accent);
+}
