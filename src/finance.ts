@@ -37,6 +37,9 @@ export interface Payment {
 
 // "60,50" ou "60.50" -> 6050 (sempre inteiro em centavos)
 export function parseMoney(input: string): number {
+  // sem dígito ("", "abc") ou com sinal de menos: recusa, em vez de virar R$ 0,00 ou valor positivo
+  if (input.includes("-") || !/\d/.test(input))
+    throw new Error(`Valor inválido: "${input}"`);
   const t = input.trim().replace(/[^\d.,]/g, "");
   const n = t.includes(",")
     ? Number(t.replace(/\./g, "").replace(",", "."))
