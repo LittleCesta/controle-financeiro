@@ -1,6 +1,6 @@
 # Controle Financeiro
 
-[![CI](https://github.com/LittleCesta/controle-financeiro/.github/workflows/ci.yml/badge.svg)](https://github.com/LittleCesta/controle-financeiro/.github/workflows/ci.yml)
+[![CI](https://github.com/LittleCesta/controle-financeiro/actions/workflows/ci.yml/badge.svg)](https://github.com/LittleCesta/controle-financeiro/actions/workflows/ci.yml)
 
 Divisão de gastos entre amigos, com site e bot do Telegram. Registra quem pagou o quê, divide entre quem participou, calcula quanto cada pessoa deve e acompanha os pagamentos até zerar as contas.
 
