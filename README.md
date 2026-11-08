@@ -8,11 +8,8 @@ Nasceu de um problema real: depois de cada rolê, uma pessoa paga o Uber, outra 
 
 ## Demonstração
 
-<!-- Adicione um GIF curto (mandar um /gasto no Telegram e o site atualizando) e um print do site.
-     Use nomes fictícios. Depois descomente as linhas abaixo.
 ![Demonstração](docs/demo.gif)
 ![Tela do grupo](docs/grupo.png)
--->
 
 ## Funcionalidades
 
