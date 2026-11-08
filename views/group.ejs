@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= group.name %></title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+  <a href="/">Todos os grupos</a>
+  <h1><%= group.name %></h1>
+  <a class="btn" href="/g/<%= group._id %>/relatorio.pdf">Baixar relatório em PDF</a>
+
+  <section>
+    <h2>Pessoas e saídas</h2>
+    <p>
+      <% people.forEach(p => { %><span class="tag"><%= p.name %></span><% }) %>
+      <% if (!people.length) { %><span class="muted">Adicione as pessoas do grupo para começar.</span><% } %>
+    </p>
+    <form method="post" action="/g/<%= group._id %>/people" class="row">
+      <input name="name" placeholder="Nome da pessoa" required><button>Adicionar pessoa</button>
+    </form>
+    <form method="post" action="/g/<%= group._id %>/outings" class="row">
+      <input name="name" placeholder="Ex.: Sábado no bar" required><button>Criar saída</button>
+    </form>
+  </section>
+
+  <% if (people.length) { %>
+  <section>
+    <h2>Novo gasto</h2>
+    <form method="post" action="/g/<%= group._id %>/expenses" class="grid">
+      <input name="description" placeholder="Descrição, ex.: Uber" required>
+      <input name="amount" placeholder="Valor, ex.: 60,00" inputmode="decimal" required>
+      <label>Quem pagou
+        <select name="paidBy"><% people.forEach(p => { %><option value="<%= p._id %>"><%= p.name %></option><% }) %></select>
+      </label>
+      <label>Saída
+        <select name="outingId">
+          <option value="">Nenhuma</option>
+          <% outings.forEach(o => { %><option value="<%= o._id %>" <%= String(o._id) === outing ? 'selected' : '' %>><%= o.name %></option><% }) %>
+        </select>
+      </label>
+      <label>Data <input type="date" name="date" value="<%= today %>" required></label>
+      <fieldset>
+        <legend>Quem participou?</legend>
+        <small>Deixe o valor em branco para dividir igualmente. Quem tiver valor preenchido paga exatamente aquilo, e o restante é dividido entre os outros.</small>
+        <% people.forEach(p => { %>
+          <div class="row">
+            <label><input type="checkbox" name="participants" value="<%= p._id %>" checked> <%= p.name %></label>
+            <input name="custom_<%= p._id %>" placeholder="igual" size="8" inputmode="decimal">
+          </div>
+        <% }) %>
+      </fieldset>
+      <button>Salvar gasto</button>
+    </form>
+  </section>
+  <% } %>
+
+  <section>
+    <h2>Saldos</h2>
+    <% balances.forEach(b => { %>
+      <div class="row between">
+        <span><%= b.name %></span>
+        <strong class="num <%= b.cents < 0 ? 'neg' : 'pos' %>"><%= brl(b.cents) %></strong>
+      </div>
+    <% }) %>
+    <small>Positivo: tem a receber. Negativo: deve ao grupo.</small>
+
+    <h3>Para zerar as contas</h3>
+    <% if (!transfers.length) { %><p class="muted">Todo mundo está quite.</p><% } %>
+    <% transfers.forEach(t => { %>
+      <form method="post" action="/g/<%= group._id %>/payments" class="row">
+        <span><%= t.fromName %> paga a <%= t.toName %></span>
+        <input type="hidden" name="from" value="<%= t.from %>">
+        <input type="hidden" name="to" value="<%= t.to %>">
+        <input name="amount" value="<%= (t.cents / 100).toFixed(2) %>" size="8" inputmode="decimal">
+        <button>Registrar pagamento</button>
+      </form>
+    <% }) %>
+  </section>
+
+  <section>
+    <h2>Gastos<%= outing ? ': ' + outNames.get(outing) : '' %></h2>
+    <form method="get" class="row">
+      <select name="outing" onchange="this.form.submit()">
+        <option value="">Todas as saídas</option>
+        <% outings.forEach(o => { %><option value="<%= o._id %>" <%= String(o._id) === outing ? 'selected' : '' %>><%= o.name %></option><% }) %>
+      </select>
+      <select name="ordem" onchange="this.form.submit()" aria-label="Ordenar por data">
+        <option value="desc" <%= order === 'desc' ? 'selected' : '' %>>Mais recentes primeiro</option>
+        <option value="asc" <%= order === 'asc' ? 'selected' : '' %>>Mais antigos primeiro</option>
+      </select>
+      <span>Total <strong class="num"><%= brl(total) %></strong></span>
+    </form>
+    <% if (!expenses.length) { %><p class="muted">Nenhum gasto registrado.</p><% } else {
+         const totals = new Map();
+         expenses.forEach(e => e.shares.forEach(s => totals.set(String(s.personId), (totals.get(String(s.personId)) || 0) + s.cents)));
+    %>
+      <small class="summary-title">Quanto coube a cada pessoa</small>
+      <ul class="summary">
+        <% [...totals].sort((a, b) => b[1] - a[1]).forEach(([id, cents]) => { %>
+          <li><span><%= names.get(id) %></span><strong class="num"><%= brl(cents) %></strong></li>
+        <% }) %>
+      </ul>
+    <% } %>
+    <% expenses.forEach(e => { %>
+      <article class="expense">
+        <div class="expense-head">
+          <div>
+            <strong class="expense-title"><%= e.description %></strong>
+            <small><%= e.date.toLocaleDateString('pt-BR') %>, pago por <%= names.get(String(e.paidBy)) %></small>
+          </div>
+          <span class="expense-amount num"><%= brl(e.cents) %></span>
+        </div>
+        <% if (e.outingId) {
+             const oname = outNames.get(String(e.outingId)) || 'Saída';
+             const hue = [...oname].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 0);
+        %>
+          <a class="flag" style="--hue:<%= hue %>" href="/g/<%= group._id %>?outing=<%= e.outingId %>&amp;ordem=<%= order %>" title="Filtrar por esta saída">
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 2v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M4 3h8l-2 2.5L12 8H4z" fill="currentColor"/></svg>
+            <%= oname %>
+          </a>
+        <% } %>
+        <ul class="split">
+          <% e.shares.forEach(s => { const pct = e.cents ? Math.round(s.cents / e.cents * 100) : 0; %>
+            <li>
+              <span class="split-name"><%= names.get(String(s.personId)) %><% if (String(s.personId) === String(e.paidBy)) { %><em>pagou</em><% } %></span>
+              <span class="split-bar"><i style="width:<%= pct %>%"></i></span>
+              <span class="num"><%= brl(s.cents) %></span>
+            </li>
+          <% }) %>
+        </ul>
+        <div class="actions">
+          <a href="/g/<%= group._id %>/expenses/<%= e._id %>/edit">Editar</a>
+          <button type="button" class="link" data-action="/g/<%= group._id %>/expenses/<%= e._id %>/delete" data-confirm="Remover o gasto “<%= e.description %>”? Os saldos serão recalculados.">Remover</button>
+        </div>
+      </article>
+    <% }) %>
+  </section>
+
+  <section>
+    <h2>Pagamentos registrados</h2>
+    <% if (!payments.length) { %><p class="muted">Nenhum pagamento ainda.</p><% } %>
+    <% payments.forEach(p => { %>
+      <div class="row between">
+        <span><%= p.date.toLocaleDateString('pt-BR') %>: <%= names.get(String(p.from)) %> pagou a <%= names.get(String(p.to)) %></span>
+        <span class="row-end">
+          <span class="num"><%= brl(p.cents) %></span>
+          <button type="button" class="link" data-action="/g/<%= group._id %>/payments/<%= p._id %>/delete" data-confirm="Remover o pagamento de <%= brl(p.cents) %> de <%= names.get(String(p.from)) %> para <%= names.get(String(p.to)) %>? O saldo volta ao que era antes.">Remover</button>
+        </span>
+      </div>
+    <% }) %>
+  </section>
+  <dialog id="confirm">
+    <form method="post">
+      <p id="confirm-text"></p>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" id="confirm-cancel">Cancelar</button>
+        <button class="danger">Remover</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+<script>
+  // Um único modal serve a todos os botões "Remover": cada botão informa a rota e o texto
+  const dlg = document.getElementById('confirm');
+  document.querySelectorAll('[data-action]').forEach((b) => b.addEventListener('click', () => {
+    dlg.querySelector('form').action = b.dataset.action;
+    document.getElementById('confirm-text').textContent = b.dataset.confirm;
+    dlg.showModal();
+  }));
+  document.getElementById('confirm-cancel').addEventListener('click', () => dlg.close());
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+</script>
+</body>
+</html>
