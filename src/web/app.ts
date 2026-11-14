@@ -7,6 +7,7 @@ import accountRoutes from "./routes/account";
 import groupRoutes from "./routes/group";
 import homeRoutes from "./routes/home";
 import inviteRoutes from "./routes/invites";
+import { ENVIRONMENT } from "../config/environment";
 
 // O store da sessão é um parâmetro: em produção é o MongoDB, nos testes é a memória
 export function createApp(
@@ -22,20 +23,20 @@ export function createApp(
   app.use(express.urlencoded({ extended: false }));
   app.use(express.static(path.join(__dirname, "../../public")));
 
-  if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+  if (ENVIRONMENT.currentEnv === "production" && !ENVIRONMENT.sessionSecret) {
     throw new Error("Defina SESSION_SECRET no .env");
   }
   // Sessões ficam no MongoDB (coleção "sessions", com expiração automática)
   app.use(
     session({
-      secret: process.env.SESSION_SECRET ?? "dev-apenas-local",
+      secret: ENVIRONMENT.sessionSecret ?? "dev-apenas-local",
       resave: false,
       saveUninitialized: false,
       store,
       cookie: {
         httpOnly: true,
         sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
+        secure: ENVIRONMENT.currentEnv === "production",
         maxAge: 30 * 24 * 60 * 60 * 1000,
       },
     }),
