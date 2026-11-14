@@ -7,11 +7,11 @@
     "url": "https://github.com/LittleCesta"
   },
   "scripts": {
-    "dev": "tsx watch --env-file=.env src/web/server.ts",
-    "bot": "tsx watch --env-file=.env src/bot/bot.ts",
-    "claim": "tsx --env-file=.env src/scripts/claim-groups.ts",
+    "dev": "tsx watch --env-file=.env.development src/web/server.ts",
+    "bot": "tsx watch --env-file=.env.production src/bot/bot.ts",
+    "claim": "tsx --env-file=.env.production src/scripts/claim-groups.ts",
     "build": "tsc",
-    "start": "node dist/web/server.js",
+    "start": "npm run build && node --env-file=.env.production dist/web/server.js",
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "express-session": "^1.19.0",
     "grammy": "^1.46.0",
     "mongodb": "^6.8.0",
+    "mongoose": "^9.12.1",
     "pdfkit": "^0.20.2"
   },
   "devDependencies": {
