@@ -35,34 +35,72 @@ export function renderReport(out: Writable, d: ReportData) {
   const valueW = 130;
 
   // Uma linha com rótulo à esquerda, valor à direita e um filete embaixo
-  function row(label: string, value: string, o: { bold?: boolean; color?: string } = {}) {
+  function row(
+    label: string,
+    value: string,
+    o: { bold?: boolean; color?: string } = {},
+  ) {
     if (doc.y > doc.page.height - 90) doc.addPage();
     const y = doc.y;
-    doc.font(o.bold ? "Helvetica-Bold" : "Helvetica").fontSize(11).fillColor(INK);
+    doc
+      .font(o.bold ? "Helvetica-Bold" : "Helvetica")
+      .fontSize(11)
+      .fillColor(INK);
     doc.text(label, left, y, { width: width - valueW - 8 });
     const labelEnd = doc.y; // o rótulo pode quebrar em mais de uma linha
-    doc.fillColor(o.color ?? INK).text(value, left + width - valueW, y, { width: valueW, align: "right" });
+    doc
+      .fillColor(o.color ?? INK)
+      .text(value, left + width - valueW, y, { width: valueW, align: "right" });
     doc.y = Math.max(labelEnd, doc.y) + 5;
     rule();
     doc.y += 6;
   }
 
   function rule() {
-    doc.moveTo(left, doc.y).lineTo(left + width, doc.y).lineWidth(0.5).strokeColor(LINE).stroke();
+    doc
+      .moveTo(left, doc.y)
+      .lineTo(left + width, doc.y)
+      .lineWidth(0.5)
+      .strokeColor(LINE)
+      .stroke();
   }
 
   // Um gasto: título e valor, quem pagou/saída e a divisão por pessoa. O bloco não quebra entre páginas.
   function expenseBlock(e: ReportData["expenses"][number]) {
     if (doc.y > doc.page.height - 120) doc.addPage();
     const y = doc.y;
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(INK)
-      .text(`${e.date.toLocaleDateString("pt-BR")}   ${e.description}`, left, y, { width: width - valueW - 8 });
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(11)
+      .fillColor(INK)
+      .text(
+        `${e.date.toLocaleDateString("pt-BR")}   ${e.description}`,
+        left,
+        y,
+        { width: width - valueW - 8 },
+      );
     const titleEnd = doc.y;
-    doc.text(brl(e.cents), left + width - valueW, y, { width: valueW, align: "right" });
+    doc.text(brl(e.cents), left + width - valueW, y, {
+      width: valueW,
+      align: "right",
+    });
     doc.y = Math.max(titleEnd, doc.y);
-    doc.font("Helvetica").fontSize(9.5).fillColor(MUTED)
-      .text(`Pago por ${e.paidByName}${e.outing ? `, saída ${e.outing}` : ""}`, left, doc.y, { width })
-      .text(`Divisão: ${e.shares.map((s) => `${s.name} ${brl(s.cents)}`).join("; ")}`, left, doc.y, { width });
+    doc
+      .font("Helvetica")
+      .fontSize(9.5)
+      .fillColor(MUTED)
+      .text(
+        `Pago por ${e.paidByName}${e.outing ? `, saída ${e.outing}` : ""}`,
+        left,
+        doc.y,
+        { width },
+      )
+      .text(
+        `Divisão: ${e.shares.map((s) => `${s.name} ${brl(s.cents)}`).join("; ")}`,
+        left,
+        doc.y,
+        { width },
+      );
     doc.y += 5;
     rule();
     doc.y += 6;
@@ -71,43 +109,68 @@ export function renderReport(out: Writable, d: ReportData) {
   function section(title: string) {
     if (doc.y > doc.page.height - 130) doc.addPage();
     doc.moveDown(1);
-    doc.font("Helvetica-Bold").fontSize(13).fillColor(INK).text(title, left, doc.y);
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(13)
+      .fillColor(INK)
+      .text(title, left, doc.y);
     doc.moveDown(0.5);
   }
 
   const note = (text: string) =>
     doc.font("Helvetica").fontSize(11).fillColor(MUTED).text(text, left, doc.y);
 
-  doc.font("Helvetica-Bold").fontSize(22).fillColor(INK).text(d.groupName, left, doc.y);
-  doc.font("Helvetica").fontSize(10).fillColor(MUTED)
-    .text(`Relatório gerado em ${new Date().toLocaleDateString("pt-BR")}`, left, doc.y);
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(22)
+    .fillColor(INK)
+    .text(d.groupName, left, doc.y);
+  doc
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor(MUTED)
+    .text(
+      `Relatório gerado em ${new Date().toLocaleDateString("pt-BR")}`,
+      left,
+      doc.y,
+    );
 
   section("Quanto cada um deve");
   if (!d.balances.length) note("Nenhuma pessoa cadastrada.");
   for (const b of d.balances) {
-    if (b.cents < 0) row(b.name, `Deve ${brl(-b.cents)}`, { color: NEG, bold: true });
-    else if (b.cents > 0) row(b.name, `A receber ${brl(b.cents)}`, { color: POS });
+    if (b.cents < 0)
+      row(b.name, `Deve ${brl(-b.cents)}`, { color: NEG, bold: true });
+    else if (b.cents > 0)
+      row(b.name, `A receber ${brl(b.cents)}`, { color: POS });
     else row(b.name, "Quite", { color: MUTED });
   }
 
   section("Para zerar as contas");
   if (!d.transfers.length) note("Todo mundo está quite.");
-  for (const t of d.transfers) row(`${t.fromName} paga a ${t.toName}`, brl(t.cents));
+  for (const t of d.transfers)
+    row(`${t.fromName} paga a ${t.toName}`, brl(t.cents));
 
   section("Gastos detalhados");
   if (!d.expenses.length) note("Nenhum gasto registrado.");
   d.expenses.forEach((e) => expenseBlock(e));
   if (d.expenses.length) {
-    row("Total gasto", brl(d.expenses.reduce((s, e) => s + e.cents, 0)), { bold: true });
+    row("Total gasto", brl(d.expenses.reduce((s, e) => s + e.cents, 0)), {
+      bold: true,
+    });
   }
 
   section("Pagamentos registrados");
   if (!d.payments.length) note("Nenhum pagamento registrado.");
   for (const p of d.payments) {
-    row(`${p.date.toLocaleDateString("pt-BR")}   ${p.fromName} pagou a ${p.toName}`, brl(p.cents));
+    row(
+      `${p.date.toLocaleDateString("pt-BR")}   ${p.fromName} pagou a ${p.toName}`,
+      brl(p.cents),
+    );
   }
   if (d.payments.length) {
-    row("Total pago", brl(d.payments.reduce((s, p) => s + p.cents, 0)), { bold: true });
+    row("Total pago", brl(d.payments.reduce((s, p) => s + p.cents, 0)), {
+      bold: true,
+    });
   }
 
   doc.end();
@@ -115,7 +178,9 @@ export function renderReport(out: Writable, d: ReportData) {
 
 // Busca e prepara os dados do relatório; é o único lugar que faz isso,
 // então o PDF do site e o do Telegram nunca divergem.
-export async function loadReportData(groupId: ObjectId): Promise<ReportData | null> {
+export async function loadReportData(
+  groupId: ObjectId,
+): Promise<ReportData | null> {
   const group = await groups.findOne({ _id: groupId });
   if (!group) return null;
 
@@ -147,7 +212,10 @@ export async function loadReportData(groupId: ObjectId): Promise<ReportData | nu
       outing: e.outingId ? outNames.get(String(e.outingId)) : undefined,
       paidByName: nameOf(e.paidBy),
       cents: e.cents,
-      shares: e.shares.map((s) => ({ name: nameOf(s.personId), cents: s.cents })),
+      shares: e.shares.map((s) => ({
+        name: nameOf(s.personId),
+        cents: s.cents,
+      })),
     })),
     payments: pays.map((p) => ({
       date: p.date,
@@ -160,8 +228,19 @@ export async function loadReportData(groupId: ObjectId): Promise<ReportData | nu
 
 export const reportFileName = (groupName: string) =>
   `relatorio-${
-    groupName.normalize("NFD").replace(/\p{M}/gu, "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "grupo"
-  }.pdf`;
+    groupName
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase() || "grupo"
+  }-${new Date()
+    .toLocaleDateString("pt-BR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+    .replace(/\//g, "-")}.pdf`;
 
 // Versão em memória, para anexar o PDF numa mensagem do Telegram sem arquivo temporário
 export function renderReportBuffer(d: ReportData): Promise<Buffer> {
