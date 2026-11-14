@@ -435,7 +435,7 @@ button.danger {
 }
 
 /* link com cara de botão (download do relatório) */
-a.btn {
+.btn {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -447,6 +447,28 @@ a.btn {
   font-weight: 600;
   text-decoration: none;
 }
-a.btn:hover {
+.btn:hover {
   border-color: var(--accent);
+}
+
+/* telas de login, cadastro e convite */
+main.narrow {
+  max-width: 440px;
+}
+.grid.single {
+  grid-template-columns: 1fr;
+}
+
+/* paginação da lista de gastos */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+.btn.disabled {
+  opacity: 0.45;
+  pointer-events: none;
 }
