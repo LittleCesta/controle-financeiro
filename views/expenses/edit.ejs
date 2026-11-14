@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Editar gasto</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<main>
+  <a href="/g/<%= group._id %>">Voltar para <%= group.name %></a>
+  <h1>Editar gasto</h1>
+  <%
+    const sel = (a, b) => String(a) === String(b) ? 'selected' : '';
+    const d = expense.date;
+    const day = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const amts = expense.shares.map(s => s.cents);
+    const equal = Math.max(...amts) - Math.min(...amts) <= 1; // divisão igual: deixa os campos em branco
+    const byPerson = new Map(expense.shares.map(s => [String(s.personId), s.cents]));
+  %>
+  <section>
+    <form method="post" action="/g/<%= group._id %>/expenses/<%= expense._id %>/edit" class="grid">
+      <input name="description" value="<%= expense.description %>" required>
+      <input name="amount" value="<%= (expense.cents / 100).toFixed(2) %>" inputmode="decimal" required>
+      <label>Quem pagou
+        <select name="paidBy"><% people.forEach(p => { %><option value="<%= p._id %>" <%= sel(p._id, expense.paidBy) %>><%= p.name %></option><% }) %></select>
+      </label>
+      <label>Saída
+        <select name="outingId">
+          <option value="">Nenhuma</option>
+          <% outings.forEach(o => { %><option value="<%= o._id %>" <%= sel(o._id, expense.outingId) %>><%= o.name %></option><% }) %>
+        </select>
+      </label>
+      <label>Data <input type="date" name="date" value="<%= day %>" required></label>
+      <fieldset>
+        <legend>Quem participou?</legend>
+        <small>Em branco divide igualmente. Se a divisão era desigual, os valores aparecem preenchidos: ao mudar o total, ajuste-os para somar o novo valor.</small>
+        <% people.forEach(p => { const has = byPerson.has(String(p._id)); %>
+          <div class="row">
+            <label><input type="checkbox" name="participants" value="<%= p._id %>" <%= has ? 'checked' : '' %>> <%= p.name %></label>
+            <input name="custom_<%= p._id %>" value="<%= has && !equal ? (byPerson.get(String(p._id)) / 100).toFixed(2) : '' %>" placeholder="igual" size="8" inputmode="decimal">
+          </div>
+        <% }) %>
+      </fieldset>
+      <div class="actions"><button>Salvar alterações</button><a href="/g/<%= group._id %>">Cancelar</a></div>
+    </form>
+  </section>
+</main>
+</body>
+</html>
