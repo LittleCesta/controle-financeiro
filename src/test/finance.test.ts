@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ObjectId } from "mongodb";
-import { balances, brl, buildShares, parseMoney, settle } from "../finance";
+import {
+  balances,
+  brl,
+  buildShares,
+  parseMoney,
+  settle,
+} from "../domain/finance";
 
 const person = () => new ObjectId();
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
