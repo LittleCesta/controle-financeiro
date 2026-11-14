@@ -18,9 +18,10 @@ import {
   reportFileName,
 } from "../services/report";
 import { balances, brl, parseMoney } from "../domain/finance";
+import { ENVIRONMENT } from "../config/environment";
 
-const token = process.env.TELEGRAM_TOKEN;
-const ownerId = Number(process.env.TELEGRAM_OWNER_ID);
+const token = ENVIRONMENT.telegramBot.token;
+const ownerId = ENVIRONMENT.telegramBot.ownerId;
 if (!token || !ownerId)
   throw new Error("Defina TELEGRAM_TOKEN e TELEGRAM_OWNER_ID no .env");
 
@@ -58,7 +59,7 @@ function pick<T extends { name: string }>(
 }
 
 async function getMe() {
-  const email = process.env.BOT_USER_EMAIL?.trim().toLowerCase();
+  const email = ENVIRONMENT.telegramBot.botUserEmail?.trim().toLowerCase();
   if (!email)
     throw new Error(
       "Defina BOT_USER_EMAIL no .env (o e-mail da sua conta no site)",
@@ -73,7 +74,7 @@ async function getMe() {
 
 // O bot só enxerga os grupos em que a conta do dono (BOT_USER_EMAIL) é membro
 async function myGroups() {
-  const email = process.env.BOT_USER_EMAIL?.trim().toLowerCase();
+  const email = ENVIRONMENT.telegramBot.botUserEmail?.trim().toLowerCase();
   if (!email)
     throw new Error(
       "Defina BOT_USER_EMAIL no .env (o e-mail da sua conta no site)",
@@ -127,9 +128,11 @@ Envie <code>/gasto Uber 60</code> e escolha nos botões quem participou, quem pa
 • <b>saida</b>: use aspas se tiver espaço: <code>saida:"Sábado no bar"</code>
 • <b>data</b>: <code>02/11</code>, <code>02/11/2026</code>, <code>hoje</code> ou <code>ontem</code>
 
-<b>Outros comandos</b>
-/grupo Nome, /eu Nome, /saldo
-/relatorio (envia o PDF de saldos e pagamentos)`;
+<b>Outros comandos:</b>
+/grupo Nome - Seleciona o grupo ativo(Escolher um grupo já existente)
+/eu Nome - Define o nome padrão de quem pagou
+/saldo - Mostra o saldo de cada pessoa
+/relatorio - Envia o PDF de saldos e pagamentos`;
 
 bot.command(["start", "ajuda"], (ctx) => ctx.reply(HELP, HTML));
 
@@ -349,6 +352,26 @@ bot.command("relatorio", async (ctx) => {
 wizard.register(bot);
 
 bot.catch((err) => console.error("Erro no bot:", err.message));
+
+let isShuttingDown = false;
+
+async function shutdown(signal: string): Promise<void> {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  console.log(`Recebido ${signal}. Encerrando bot...`);
+  try {
+    await bot.stop();
+    await client.close();
+  } catch (err) {
+    console.error("Erro durante o encerramento:", err);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
 
 client
   .connect()
