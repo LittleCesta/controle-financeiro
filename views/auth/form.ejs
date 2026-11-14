@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= mode === 'login' ? 'Entrar' : 'Criar conta' %></title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<main class="narrow">
+  <h1><%= mode === 'login' ? 'Entrar' : 'Criar conta' %></h1>
+  <section>
+    <% if (error) { %><p class="neg" role="alert"><%= error %></p><% } %>
+    <form method="post" action="/<%= mode === 'login' ? 'login' : 'cadastro' %>" class="grid single">
+      <input type="hidden" name="next" value="<%= next %>">
+      <% if (mode === 'register') { %>
+        <input name="name" placeholder="Seu nome" value="<%= name %>" autocomplete="name" required>
+      <% } %>
+      <input type="email" name="email" placeholder="E-mail" value="<%= email %>" autocomplete="email" required>
+      <input type="password" name="password" placeholder="<%= mode === 'login' ? 'Senha' : 'Senha (mínimo 8 caracteres)' %>"
+             autocomplete="<%= mode === 'login' ? 'current-password' : 'new-password' %>" minlength="<%= mode === 'login' ? 1 : 8 %>" required>
+      <button><%= mode === 'login' ? 'Entrar' : 'Criar conta' %></button>
+    </form>
+    <p class="muted">
+      <% if (mode === 'login') { %>Ainda não tem conta? <a href="/cadastro?next=<%= encodeURIComponent(next) %>">Criar conta</a>
+      <% } else { %>Já tem conta? <a href="/login?next=<%= encodeURIComponent(next) %>">Entrar</a><% } %>
+    </p>
+  </section>
+</main>
+</body>
+</html>
