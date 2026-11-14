@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Divisão de gastos</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<main>
+  <div class="row between">
+    <h1>Divisão de gastos</h1>
+    <form method="post" action="/logout"><button class="link">Sair (<%= user.name %>)</button></form>
+  </div>
+  <form method="post" action="/groups" class="row">
+    <input name="name" placeholder="Nome do grupo, ex.: Amigos do futebol" required>
+    <button>Criar grupo</button>
+  </form>
+  <% if (!groups.length) { %><p class="muted">Você ainda não está em nenhum grupo. Crie um acima ou abra o link de convite que recebeu.</p><% } %>
+  <ul>
+    <% groups.forEach(g => { %><li><a href="/g/<%= g._id %>"><%= g.name %></a></li><% }) %>
+  </ul>
+</main>
+</body>
+</html>

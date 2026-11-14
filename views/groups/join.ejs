@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar no grupo</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<main class="narrow">
+  <h1>Entrar em <%= group.name %></h1>
+  <section>
+    <form method="post" action="/convite/<%= group.inviteToken %>" class="grid single">
+      <p>Você entra como <strong><%= user.name %></strong>. Quem é você nas contas deste grupo?</p>
+      <label>Escolha o seu nome
+        <select name="person">
+          <% free.forEach(p => { %><option value="<%= p._id %>"><%= p.name %></option><% }) %>
+          <option value="new">Nenhum destes: criar "<%= user.name %>"</option>
+        </select>
+      </label>
+      <button>Entrar no grupo</button>
+    </form>
+  </section>
+</main>
+</body>
+</html>
