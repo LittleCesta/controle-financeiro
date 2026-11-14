@@ -1,7 +1,35 @@
 services:
-  mongo:
-    image: mongo:7
-    ports: ["27017:27017"]
-    volumes: [mongo-data:/data/db]
-volumes:
-  mongo-data:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rachaconta-web
+    restart: unless-stopped
+    ports:
+      - "3033:3033"
+    env_file:
+      - .env.production
+    command: ["node", "dist/web/server.js"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3033/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rachaconta-bot
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    command: ["node", "dist/bot/bot.js"]
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: rachaconta-tunnel
+    restart: unless-stopped
+    depends_on:
+      - web
+    command: tunnel --no-autoupdate --url http://web:3033

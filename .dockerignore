@@ -1,1 +1,9 @@
 node_modules
+dist
+coverage
+.git
+.github
+.env.development
+*.rar
+*.zip
+*.log
