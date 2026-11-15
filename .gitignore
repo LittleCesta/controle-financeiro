@@ -1,4 +1,8 @@
 node_modules
-.env.production
-.env.development
 dist
+coverage
+.env*
+!.env.example
+*.rar
+*.zip
+*.log
