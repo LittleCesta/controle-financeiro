@@ -21,5 +21,8 @@ COPY --from=builder /app/dist ./dist
 COPY views ./views
 COPY public ./public
 
-EXPOSE 3000
+# Não roda como root: se alguém explorar uma falha, o estrago fica limitado ao usuário "node"
+USER node
+
+EXPOSE 3033
 CMD ["node", "dist/web/server.js"]
