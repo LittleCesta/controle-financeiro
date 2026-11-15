@@ -1,38 +1,60 @@
-import path from "node:path";
-import mongoose from "mongoose";
-import { createApp } from "./app"; // ajuste conforme sua exportação
-import { ENVIRONMENT } from "../config/environment";
+import { client, users } from "../config/db";
+import { assertEnv, ENVIRONMENT } from "../config/environment";
+import { createApp } from "./app";
 
-const app = createApp();
+async function main() {
+  // Em produção, falha cedo em vez de subir apontando para o banco errado
+  if (ENVIRONMENT.currentEnv === "production") {
+    assertEnv(["MONGO_URL", "SESSION_SECRET"]);
+  }
 
-// Necessário quando rodar atrás de Nginx/Cloudflare/proxy com HTTPS
-if (ENVIRONMENT.currentEnv === "production") {
-  app.set("trust proxy", 1);
-}
+  const app = createApp();
+  const port = Number(ENVIRONMENT.currentEnvPort) || 3000;
 
-// Garante resolução correta de views e assets após compilar para dist/
-app.set("views", path.join(process.cwd(), "views"));
+  // Necessário atrás de Nginx/Cloudflare/proxy com HTTPS: o cookie "secure" depende disso
+  if (ENVIRONMENT.currentEnv === "production") app.set("trust proxy", 1);
 
-// Rota leve para o healthcheck do Docker
-app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
-});
-
-const port = Number(ENVIRONMENT.currentEnvPort);
-const server = app.listen(port, "0.0.0.0", () => {
-  console.log(`Servidor web ativo http://localhost:${port}`);
-});
-
-async function shutdown(signal: string): Promise<void> {
-  console.log(`Recebido ${signal}. Encerrando servidor web...`);
-  server.close(async () => {
-    await mongoose.disconnect();
-    process.exit(0);
+  // Healthcheck do Docker: só responde "ok" se o banco também responde
+  app.get("/health", async (_req, res) => {
+    try {
+      await client.db().command({ ping: 1 });
+      res.status(200).json({ status: "ok" });
+    } catch {
+      res.status(503).json({ status: "banco indisponível" });
+    }
   });
 
-  // Força encerramento caso alguma conexão fique presa após 8s
-  setTimeout(() => process.exit(1), 8000).unref();
+  await client.connect();
+
+  // Um cadastro por e-mail: o cadastro depende deste índice para recusar repetidos
+  try {
+    await users.createIndex({ email: 1 }, { unique: true });
+  } catch (err) {
+    if ((err as { code?: number }).code === 11000) {
+      throw new Error(
+        "Existem e-mails repetidos em users. Remova os duplicados e reinicie.",
+      );
+    }
+    throw err;
+  }
+
+  const server = app.listen(port, "0.0.0.0", () =>
+    console.log(`Servidor web ativo em http://localhost:${port}`),
+  );
+
+  const shutdown = (signal: string) => {
+    console.log(`Recebido ${signal}. Encerrando servidor web...`);
+    server.close(async () => {
+      await client.close();
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 8000).unref(); // conexão presa: força a saída
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
-process.on("SIGTERM", () => void shutdown("SIGTERM"));
-process.on("SIGINT", () => void shutdown("SIGINT"));
+main().catch((err) => {
+  console.error("Falha ao iniciar:", err.message);
+  process.exit(1);
+});

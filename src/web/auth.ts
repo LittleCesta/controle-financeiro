@@ -21,7 +21,9 @@ declare global {
 
 const scrypt = (pw: string, salt: Buffer) =>
   new Promise<Buffer>((resolve, reject) =>
-    crypto.scrypt(pw, salt, 64, (err, key) => (err ? reject(err) : resolve(key))),
+    crypto.scrypt(pw, salt, 64, (err, key) =>
+      err ? reject(err) : resolve(key),
+    ),
   );
 
 // scrypt vem no próprio Node (sem dependência nativa para compilar no Windows).
@@ -35,7 +37,10 @@ export async function verifyPassword(pw: string, stored: string) {
   const [salt, hash] = stored.split(":");
   const expected = Buffer.from(hash, "hex");
   const actual = await scrypt(pw, Buffer.from(salt, "hex"));
-  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  return (
+    expected.length === actual.length &&
+    crypto.timingSafeEqual(expected, actual)
+  );
 }
 
 export const newToken = () => crypto.randomBytes(24).toString("base64url");
@@ -43,7 +48,12 @@ export const newToken = () => crypto.randomBytes(24).toString("base64url");
 // Só aceita caminhos internos como destino pós-login (evita redirecionar para site de terceiros).
 // A barra invertida é recusada porque os navegadores a tratam como "/": "/\\evil.com" viraria "//evil.com".
 export const safeNext = (v: unknown) =>
-  typeof v === "string" && v.startsWith("/") && !v.startsWith("//") && !v.includes("\\") ? v : "/";
+  typeof v === "string" &&
+  v.startsWith("/") &&
+  !v.startsWith("//") &&
+  !v.includes("\\")
+    ? v
+    : "/";
 
 // Troca o id da sessão ao logar, o que impede fixação de sessão
 export const startSession = (req: Request, userId: ObjectId) =>
@@ -59,7 +69,8 @@ export const requireLogin: RequestHandler = async (req, res, next) => {
   try {
     const id = req.session.userId;
     const user = id ? await users.findOne({ _id: new ObjectId(id) }) : null;
-    if (!user) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
+    if (!user)
+      return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
     req.user = user;
     res.locals.user = user;
     next();
