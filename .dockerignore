@@ -3,7 +3,8 @@ dist
 coverage
 .git
 .github
-.env.development
+.env*
+docs
 *.rar
 *.zip
 *.log
