@@ -11,3 +11,11 @@ export const ENVIRONMENT = {
     mongoUrl: process.env.MONGO_URL,
   },
 };
+
+// Falha cedo, com mensagem clara, em vez de subir quebrado (ex.: apontando para o banco errado)
+export function assertEnv(names: string[]) {
+  const missing = names.filter((n) => !process.env[n]?.trim());
+  if (missing.length) {
+    throw new Error(`Variáveis de ambiente ausentes: ${missing.join(", ")}`);
+  }
+}
