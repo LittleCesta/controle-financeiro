@@ -18,12 +18,26 @@ import {
   reportFileName,
 } from "../services/report";
 import { balances, brl, parseMoney } from "../domain/finance";
-import { ENVIRONMENT } from "../config/environment";
+import { assertEnv, ENVIRONMENT } from "../config/environment";
 
-const token = ENVIRONMENT.telegramBot.token;
+// Falha cedo, com mensagem clara, se faltar alguma configuração
+try {
+  assertEnv([
+    "TELEGRAM_TOKEN",
+    "TELEGRAM_OWNER_ID",
+    "BOT_USER_EMAIL",
+    ...(ENVIRONMENT.currentEnv === "production" ? ["MONGO_URL"] : []),
+  ]);
+  if (!Number.isInteger(ENVIRONMENT.telegramBot.ownerId)) {
+    throw new Error("TELEGRAM_OWNER_ID precisa ser um número");
+  }
+} catch (err) {
+  console.error((err as Error).message);
+  process.exit(1);
+}
+
+const token = ENVIRONMENT.telegramBot.token as string;
 const ownerId = ENVIRONMENT.telegramBot.ownerId;
-if (!token || !ownerId)
-  throw new Error("Defina TELEGRAM_TOKEN e TELEGRAM_OWNER_ID no .env");
 
 const bot = new Bot(token);
 

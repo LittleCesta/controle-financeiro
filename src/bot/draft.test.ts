@@ -5,12 +5,22 @@ import { applyAction, cardText, daysAgo, type Draft } from "./draft";
 
 const esc = (s: string) => s;
 const make = (over: Partial<Draft> = {}): Draft => ({
-  id: "abc", chatId: 1, messageId: 1, sent: new Date(2026, 10, 8, 10, 30), groupId: new ObjectId(),
-  description: "Uber", cents: 6000,
+  id: "abc",
+  chatId: 1,
+  messageId: 1,
+  sent: new Date(2026, 10, 8, 10, 30),
+  groupId: new ObjectId(),
+  description: "Uber",
+  cents: 6000,
   people: ["Ana", "Bia", "Cesar"].map((name) => ({ id: new ObjectId(), name })),
   outings: [{ id: new ObjectId(), name: "Sábado" }],
-  on: new Set([0, 1, 2]), payer: 2, outing: null, date: new Date(2026, 10, 8, 10, 30),
-  saving: false, expires: Infinity, ...over,
+  on: new Set([0, 1, 2]),
+  payer: 2,
+  outing: null,
+  date: new Date(2026, 10, 8, 10, 30),
+  saving: false,
+  expires: Infinity,
+  ...over,
 });
 
 describe("applyAction", () => {
