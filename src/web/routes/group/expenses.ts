@@ -2,7 +2,11 @@ import { Router } from "express";
 import { ObjectId } from "mongodb";
 import { groups, people, outings, expenses } from "../../../config/db";
 import { parseMoney } from "../../../domain/finance";
-import { createExpense, updateExpense, type NewExpense } from "../../../services/expenses";
+import {
+  createExpense,
+  updateExpense,
+  type NewExpense,
+} from "../../../services/expenses";
 import { h } from "../../http";
 
 const router = Router({ mergeParams: true });

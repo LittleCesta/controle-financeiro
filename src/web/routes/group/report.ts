@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { ObjectId } from "mongodb";
-import { loadReportData, renderReport, reportFileName } from "../../../services/report";
+import {
+  loadReportData,
+  renderReport,
+  reportFileName,
+} from "../../../services/report";
 import { h } from "../../http";
 
 const router = Router({ mergeParams: true });
